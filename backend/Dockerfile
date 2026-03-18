@@ -1,7 +1,7 @@
 FROM python:3.13-slim
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY Requirements.txt .
+RUN pip install --no-cache-dir -r Requirements.txt
 COPY . .
 EXPOSE 5001
 CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:5001", "--workers", "2"]
