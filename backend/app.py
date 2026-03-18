@@ -30,14 +30,18 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "nutri-turnos-secret")
 
 db.init_app(app)
 
-# Crear tablas + admin
-with app.app_context():
-    db.create_all()
-    if not Usuario.query.filter_by(username="admin").first():
-        u = Usuario(username="admin")
-        u.set_password(os.environ.get("ADMIN_PASSWORD", "nutri1234"))
-        db.session.add(u)
-        db.session.commit()
+def init_db():
+    try:
+        with app.app_context():
+            db.create_all()
+            if not Usuario.query.filter_by(username="admin").first():
+                u = Usuario(username="admin")
+                u.set_password(os.environ.get("ADMIN_PASSWORD", "nutri1234"))
+                db.session.add(u)
+                db.session.commit()
+        print("✅ DB inicializada")
+    except Exception as e:
+        print(f"❌ Error DB init: {e}")
 
 # ── AUTH ────────────────────────────────────────────────
 def make_token(user_id):
