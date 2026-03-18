@@ -7,16 +7,21 @@ from telegram_helper import enviar_telegram
 from notifier import check_recordatorios, get_conf, nombre_turno
 import os
 import jwt
-import threading
-import time
-import traceback
 
 app = Flask(__name__)
 CORS(app)
 
-# ── DATABASE ─────────────────────────────────────────────
-database_url = os.environ.get("DATABASE_URL", "")
-    
+# ─────────────────────────────────────────────
+# DATABASE (CORREGIDO PARA RAILWAY)
+# ─────────────────────────────────────────────
+database_url = os.environ.get("DATABASE_URL")
+
+if not database_url:
+    raise Exception("❌ DATABASE_URL no definida")
+
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SQLALCHEMY_POOL_PRE_PING"] = True
@@ -25,20 +30,9 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "nutri-turnos-secret")
 
 db.init_app(app)
 
-def init_db():
-    try:
-        with app.app_context():
-            db.create_all()
-            if not Usuario.query.filter_by(username="admin").first():
-                u = Usuario(username="admin")
-                u.set_password(os.environ.get("ADMIN_PASSWORD", "nutri1234"))
-                db.session.add(u)
-                db.session.commit()
-        print("✅ DB inicializada")
-    except Exception as e:
-        print(f"❌ Error DB init: {e}")
-
-# ── AUTH ────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# AUTH
+# ─────────────────────────────────────────────
 def make_token(user_id):
     payload = {
         "sub": user_id,
@@ -60,7 +54,9 @@ def auth_required(f):
         return f(*args, **kwargs)
     return decorated
 
-# ── ERRORES ─────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# ERRORES
+# ─────────────────────────────────────────────
 @app.errorhandler(404)
 def not_found(e):
     return jsonify({"error": "not_found"}), 404
@@ -69,7 +65,9 @@ def not_found(e):
 def server_error(e):
     return jsonify({"error": "internal_server_error"}), 500
 
-# ── HEALTH ──────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# HEALTH
+# ─────────────────────────────────────────────
 @app.route("/")
 def home():
     return jsonify({"status": "nutri-turnos OK"})
@@ -78,7 +76,9 @@ def home():
 def health():
     return jsonify({"status": "ok"})
 
-# ── AUTH ROUTES ─────────────────────────────────────────
+# ─────────────────────────────────────────────
+# AUTH ROUTES
+# ─────────────────────────────────────────────
 @app.route("/auth/login", methods=["POST"])
 def login():
     data = request.json or {}
@@ -92,56 +92,82 @@ def login():
         "username": user.username
     })
 
-# ── TURNOS ──────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# TURNOS
+# ─────────────────────────────────────────────
 @app.route("/turnos", methods=["GET"])
 @auth_required
 def listar_turnos():
-    turnos = Turno.query.all()
+    turnos = Turno.query.order_by(Turno.fecha, Turno.hora).all()
     return jsonify([_dict(t) for t in turnos])
 
 @app.route("/turnos", methods=["POST"])
 @auth_required
 def crear_turno():
     data = request.json or {}
+
     t = Turno(
         fecha=date.fromisoformat(data["fecha"]),
         hora=data["hora"],
         duracion=data.get("duracion", 45),
-        estado="pendiente"
+        estado="pendiente",
+        notas=data.get("notas"),
+        paciente_id=data.get("paciente_id"),
+        nombre_libre=data.get("nombre_libre"),
+        telefono=data.get("telefono"),
+        email=data.get("email"),
     )
+
     db.session.add(t)
     db.session.commit()
+
     return jsonify({"id": t.id})
 
-# ── HELPERS ─────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# TURNOS PUBLICO
+# ─────────────────────────────────────────────
+@app.route("/publico/disponibles", methods=["GET"])
+def disponibles_publico():
+    fecha_str = request.args.get("fecha")
+    if not fecha_str:
+        return jsonify({"error": "fecha requerida"}), 400
+
+    ocupados = {
+        t.hora for t in Turno.query.filter_by(
+            fecha=date.fromisoformat(fecha_str)
+        ).filter(Turno.estado != "cancelado").all()
+    }
+
+    horarios = [
+        "09:00","10:00","11:00","12:00",
+        "14:00","15:00","16:00","17:00"
+    ]
+
+    return jsonify({
+        "disponibles": [h for h in horarios if h not in ocupados]
+    })
+
+# ─────────────────────────────────────────────
+# HELPERS
+# ─────────────────────────────────────────────
 def _dict(t):
     return {
         "id": t.id,
         "fecha": t.fecha.isoformat(),
         "hora": t.hora,
         "duracion": t.duracion,
-        "estado": t.estado
+        "estado": t.estado,
+        "notas": t.notas,
+        "paciente_id": t.paciente_id,
+        "nombre": nombre_turno(t),
+        "telefono": t.telefono,
+        "email": t.email,
+        "nombre_libre": t.nombre_libre,
     }
 
-# ── SCHEDULER (SEGURO PARA GUNICORN) ────────────────────
-def scheduler_loop():
-    while True:
-        try:
-            with app.app_context():
-                result = check_recordatorios()
-                print(f"[Scheduler] {result}")
-        except Exception as e:
-            print(f"[Scheduler error] {e}")
-        time.sleep(300)
-
-def start_scheduler():
-    if os.environ.get("RUN_SCHEDULER") == "1":
-        print("🚀 Iniciando scheduler...")
-        threading.Thread(target=scheduler_loop, daemon=True).start()
-
-start_scheduler()
-
-# ── MAIN SOLO PARA LOCAL ─────────────────────────────────
+# ─────────────────────────────────────────────
+# MAIN (solo local)
+# ─────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port)
