@@ -8,6 +8,7 @@ function toISO(d) { return d.toISOString().split("T")[0]; }
 function addDays(d,n) { const dt = new Date(d); dt.setDate(dt.getDate()+n); return dt; }
 
 export default function Reservar() {
+  const [modo, setModo]       = useState("inicio"); // inicio | reservar | cancelar
   const [paso, setPaso]       = useState(1);
   const [fecha, setFecha]     = useState(null);
   const [hora, setHora]       = useState("");
@@ -18,6 +19,12 @@ export default function Reservar() {
   const [error, setError]     = useState("");
   const [profNombre, setProfNombre] = useState("");
 
+  // Cancelar
+  const [nombreCancelar, setNombreCancelar] = useState("");
+  const [turnosCancelar, setTurnosCancelar] = useState([]);
+  const [buscando, setBuscando]             = useState(false);
+  const [cancelMsg, setCancelMsg]           = useState("");
+
   const diasHabiles = [];
   let d = addDays(new Date(), 1);
   while (diasHabiles.length < 14) {
@@ -27,7 +34,11 @@ export default function Reservar() {
 
   useEffect(() => {
     fetch(`${API}/publico/configuracion`)
-      .then(r => r.json()).then(data => setProfNombre(data.prof_nombre || "")).catch(() => {});
+      .then(r => r.json())
+      .then(data => {
+        setProfNombre(data.prof_nombre || "");
+        if (data.agenda_duracion_default) setDuracion(Number(data.agenda_duracion_default));
+      }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -53,6 +64,114 @@ export default function Reservar() {
     setSaving(false);
   };
 
+  const buscarTurnos = async () => {
+    if (!nombreCancelar.trim()) return;
+    setBuscando(true); setCancelMsg("");
+    try {
+      const res = await fetch(`${API}/publico/mis-turnos?nombre=${encodeURIComponent(nombreCancelar.trim())}`);
+      const data = await res.json();
+      setTurnosCancelar(data);
+      if (data.length === 0) setCancelMsg("No se encontraron turnos activos con ese nombre.");
+    } catch { setCancelMsg("Error al buscar. Intentá de nuevo."); }
+    setBuscando(false);
+  };
+
+  const cancelarTurno = async (id) => {
+    if (!window.confirm("¿Cancelar este turno?")) return;
+    try {
+      const res = await fetch(`${API}/publico/cancelar/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombre: nombreCancelar.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      setTurnosCancelar(t => t.filter(x => x.id !== id));
+      setCancelMsg("Turno cancelado correctamente.");
+    } catch { setCancelMsg("No se pudo cancelar."); }
+  };
+
+  // ── Pantalla de inicio ──
+  if (modo === "inicio") return (
+    <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 16px" }}>
+      <div style={{ textAlign: "center", marginBottom: 40 }}>
+        <div style={{ fontFamily: "var(--font-display, Georgia, serif)", fontSize: "2.4rem", fontWeight: 400, color: "var(--text)" }}>NutriTurnos</div>
+        {profNombre && <div style={{ fontSize: "0.95rem", color: "var(--text-muted)", marginTop: 8 }}>{profNombre}</div>}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", maxWidth: 340 }}>
+        <button className="btn-primary" style={{ padding: "14px 20px", fontSize: "1rem" }} onClick={() => setModo("reservar")}>
+          📅 Reservar turno
+        </button>
+        <button className="btn-secondary" style={{ padding: "14px 20px", fontSize: "1rem" }} onClick={() => setModo("cancelar")}>
+          ❌ Cancelar mi turno
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── Pantalla cancelar ──
+  if (modo === "cancelar") return (
+    <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: "40px 16px" }}>
+      <div style={{ textAlign: "center", marginBottom: 32 }}>
+        <div style={{ fontFamily: "var(--font-display, Georgia, serif)", fontSize: "2rem", fontWeight: 400 }}>Cancelar turno</div>
+        <div style={{ fontSize: "0.875rem", color: "var(--text-muted)", marginTop: 6 }}>Ingresá tu nombre y apellido tal como lo registraste</div>
+      </div>
+
+      <div className="card" style={{ width: "100%", maxWidth: 480 }}>
+        <div className="form-group">
+          <label>Nombre y apellido</label>
+          <input
+            value={nombreCancelar}
+            onChange={e => setNombreCancelar(e.target.value)}
+            placeholder="ej: Juan Pérez"
+            onKeyDown={e => e.key === "Enter" && buscarTurnos()}
+          />
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button className="btn-primary" onClick={buscarTurnos} disabled={buscando}>
+            {buscando ? "Buscando..." : "Buscar mis turnos"}
+          </button>
+          <button className="btn-ghost" onClick={() => { setModo("inicio"); setTurnosCancelar([]); setNombreCancelar(""); setCancelMsg(""); }}>
+            ← Volver
+          </button>
+        </div>
+
+        {cancelMsg && (
+          <div className={`alert ${cancelMsg.includes("correctamente") ? "alert-success" : "alert-danger"}`} style={{ marginTop: 16 }}>
+            {cancelMsg}
+          </div>
+        )}
+
+        {turnosCancelar.length > 0 && (
+          <div style={{ marginTop: 20 }}>
+            <div style={{ fontSize: "0.8rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-muted)", marginBottom: 12 }}>
+              Tus turnos activos
+            </div>
+            {turnosCancelar.map(t => (
+              <div key={t.id} style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "12px 14px", borderRadius: "var(--radius)", border: "1px solid var(--border-light)",
+                background: "var(--surface-2)", marginBottom: 10,
+              }}>
+                <div>
+                  <div style={{ fontWeight: 600 }}>
+                    {new Date(t.fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "long" })}
+                  </div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                    {t.hora} · {t.duracion} min · <span style={{ color: t.estado === "confirmado" ? "#1a6630" : "#c47c00", fontWeight: 500 }}>{t.estado}</span>
+                  </div>
+                </div>
+                <button className="btn-danger" style={{ padding: "6px 12px", fontSize: "0.8rem" }} onClick={() => cancelarTurno(t.id)}>
+                  Cancelar
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // ── Pantalla reservar ──
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: "40px 16px" }}>
       <div style={{ textAlign: "center", marginBottom: 32 }}>
@@ -62,7 +181,6 @@ export default function Reservar() {
         {profNombre && <div style={{ fontSize: "0.9rem", color: "var(--text-muted)", marginTop: 6 }}>{profNombre}</div>}
       </div>
 
-      {/* Steps indicator */}
       <div style={{ display: "flex", gap: 8, marginBottom: 28, alignItems: "center" }}>
         {[1,2,3].map(s => (
           <div key={s} style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -79,8 +197,6 @@ export default function Reservar() {
       </div>
 
       <div className="card" style={{ width: "100%", maxWidth: 540 }}>
-
-        {/* Paso 1 */}
         {paso === 1 && (
           <>
             <div className="card-title">¿Qué día preferís?</div>
@@ -100,21 +216,8 @@ export default function Reservar() {
                 );
               })}
             </div>
-
             {fecha && (
               <>
-                <div className="card-title">Duración</div>
-                <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-                  {[30,45,60].map(d => (
-                    <button key={d} onClick={() => setDuracion(d)} style={{
-                      padding: "7px 16px", borderRadius: "var(--radius-sm)",
-                      border: `1.5px solid ${duracion === d ? "var(--accent)" : "var(--border)"}`,
-                      background: duracion === d ? "var(--accent)" : "var(--surface)",
-                      color: duracion === d ? "white" : "var(--text)", cursor: "pointer", fontFamily: "var(--font-body)",
-                    }}>{d} min</button>
-                  ))}
-                </div>
-
                 <div className="card-title">Horarios disponibles</div>
                 {disponibles.length === 0
                   ? <p style={{ color: "var(--text-muted)", fontSize: "0.875rem", marginBottom: 16 }}>No hay horarios disponibles para este día.</p>
@@ -130,18 +233,21 @@ export default function Reservar() {
                       ))}
                     </div>
                 }
-                <button className="btn-primary" disabled={!hora} onClick={() => setPaso(2)}>Continuar →</button>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button className="btn-primary" disabled={!hora} onClick={() => setPaso(2)}>Continuar →</button>
+                  <button className="btn-ghost" onClick={() => setModo("inicio")}>← Volver</button>
+                </div>
               </>
             )}
+            {!fecha && <button className="btn-ghost" onClick={() => setModo("inicio")}>← Volver</button>}
           </>
         )}
 
-        {/* Paso 2 */}
         {paso === 2 && (
           <>
             <div className="card-title">Tus datos</div>
             <div style={{ padding: "10px 14px", background: "var(--accent-light)", borderRadius: "var(--radius)", marginBottom: 20, fontSize: "0.875rem", color: "var(--accent-dark, #1b4332)" }}>
-              📅 {fecha && `${fecha.getDate()} de ${MESES[fecha.getMonth()]}`} a las {hora} · {duracion} min
+              📅 {fecha && `${fecha.getDate()} de ${MESES[fecha.getMonth()]}`} a las {hora}
             </div>
             {error && <div className="alert alert-danger" style={{ marginBottom: 16 }}>{error}</div>}
             <div className="form-group"><label>Nombre y apellido *</label><input value={form.nombre_libre} onChange={e => set("nombre_libre", e.target.value)} placeholder="Tu nombre completo" /></div>
@@ -155,20 +261,18 @@ export default function Reservar() {
           </>
         )}
 
-        {/* Paso 3 */}
         {paso === 3 && (
           <div style={{ textAlign: "center", padding: "32px 0" }}>
             <div style={{ fontSize: "3.5rem", marginBottom: 16 }}>✅</div>
             <div style={{ fontFamily: "var(--font-display, Georgia, serif)", fontSize: "1.6rem", marginBottom: 8 }}>¡Turno reservado!</div>
-            <div style={{ color: "var(--text-muted)", marginBottom: 4 }}>
-              {fecha && `${fecha.getDate()} de ${MESES[fecha.getMonth()]}`} a las {hora}
+            <div style={{ color: "var(--text-muted)", marginBottom: 4 }}>{fecha && `${fecha.getDate()} de ${MESES[fecha.getMonth()]}`} a las {hora}</div>
+            <div style={{ color: "var(--text-muted)", fontSize: "0.875rem", marginTop: 8 }}>Te vamos a contactar para confirmarlo.</div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 24 }}>
+              <button className="btn-secondary" onClick={() => { setPaso(1); setFecha(null); setHora(""); setForm({ nombre_libre: "", telefono: "", email: "", notas: "" }); }}>
+                Reservar otro turno
+              </button>
+              <button className="btn-ghost" onClick={() => setModo("inicio")}>Inicio</button>
             </div>
-            <div style={{ color: "var(--text-muted)", fontSize: "0.875rem", marginTop: 8 }}>
-              Te vamos a contactar para confirmarlo.
-            </div>
-            <button className="btn-secondary" style={{ marginTop: 24 }} onClick={() => { setPaso(1); setFecha(null); setHora(""); setForm({ nombre_libre: "", telefono: "", email: "", notas: "" }); }}>
-              Reservar otro turno
-            </button>
           </div>
         )}
       </div>
