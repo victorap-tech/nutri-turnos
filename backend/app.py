@@ -191,8 +191,23 @@ def disponibles_publico():
     if not fecha_str:
         return jsonify({"error": "fecha requerida"}), 400
 
-    hora_inicio = get_conf("agenda_hora_inicio") or "09:00"
-    hora_fin    = get_conf("agenda_hora_fin")    or "18:00"
+    # Usar horario por día de semana si está configurado
+    import json as _json
+    horarios_semana_str = get_conf("horarios_semana")
+    dia_semana = str(date.fromisoformat(fecha_str).isoweekday())  # 1=lun, 7=dom
+    hora_inicio = "09:00"
+    hora_fin    = "18:00"
+    activo = True
+    if horarios_semana_str:
+        try:
+            horarios = _json.loads(horarios_semana_str)
+            dia_conf = horarios.get(dia_semana, {})
+            if not dia_conf.get("activo", True):
+                return jsonify({"disponibles": [], "ocupados": []})
+            hora_inicio = dia_conf.get("inicio", "09:00")
+            hora_fin    = dia_conf.get("fin",    "18:00")
+        except Exception:
+            pass
 
     inicio = datetime.strptime(hora_inicio, "%H:%M")
     fin    = datetime.strptime(hora_fin,    "%H:%M")
@@ -232,13 +247,17 @@ def buscar_pacientes():
 
 # ── CONFIGURACION ─────────────────────────────────────────
 CLAVES = ["tg_bot_token", "tg_chat_id", "agenda_hora_inicio", "agenda_hora_fin",
-          "prof_nombre", "agenda_duracion_default"]
+          "prof_nombre", "agenda_duracion_default", "horarios_semana"]
 
 
 @app.route("/publico/configuracion", methods=["GET"])
 def get_config_publico():
-    conf = db.session.get(Configuracion, "prof_nombre")
-    return jsonify({"prof_nombre": conf.valor if conf else ""})
+    claves = ["prof_nombre", "agenda_duracion_default", "horarios_semana"]
+    result = {}
+    for c in claves:
+        conf = db.session.get(Configuracion, c)
+        result[c] = conf.valor if conf else ""
+    return jsonify(result)
 
 @app.route("/configuracion", methods=["GET"])
 @auth_required
@@ -311,6 +330,41 @@ def _dict(t):
         "email": t.email,
         "nombre_libre": t.nombre_libre,
     }
+
+@app.route("/publico/mis-turnos", methods=["GET"])
+def mis_turnos():
+    nombre = (request.args.get("nombre") or "").strip().lower()
+    if not nombre:
+        return jsonify({"error": "nombre requerido"}), 400
+    turnos = Turno.query.filter(
+        Turno.estado.in_(["pendiente", "confirmado"]),
+        Turno.fecha >= date.today()
+    ).order_by(Turno.fecha, Turno.hora).all()
+    resultado = [
+        _dict(t) for t in turnos
+        if (t.nombre_libre or "").lower().strip() == nombre
+    ]
+    return jsonify(resultado)
+
+@app.route("/publico/cancelar/<int:turno_id>", methods=["PUT"])
+def cancelar_turno_publico(turno_id):
+    nombre = (request.json or {}).get("nombre", "").strip().lower()
+    t = get_or_404(Turno, turno_id)
+    if (t.nombre_libre or "").lower().strip() != nombre:
+        return jsonify({"error": "no_autorizado"}), 403
+    t.estado = "cancelado"
+    db.session.commit()
+    bot_token = get_conf("tg_bot_token")
+    chat_id   = get_conf("tg_chat_id")
+    if bot_token and chat_id:
+        msg = (
+            f"❌ <b>Turno cancelado por el paciente</b>\n"
+            f"👤 {t.nombre_libre}\n"
+            f"📆 {t.fecha.strftime('%d/%m/%Y')} a las {t.hora}"
+        )
+        enviar_telegram(bot_token, chat_id, msg)
+    return jsonify({"status": "cancelado"})
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
