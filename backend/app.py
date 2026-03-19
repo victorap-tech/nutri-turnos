@@ -191,23 +191,24 @@ def disponibles_publico():
     if not fecha_str:
         return jsonify({"error": "fecha requerida"}), 400
 
-    # Usar horario por día de semana si está configurado
+    # Usar horario por día de semana
     import json as _json
     horarios_semana_str = get_conf("horarios_semana")
     dia_semana = str(date.fromisoformat(fecha_str).isoweekday())  # 1=lun, 7=dom
-    hora_inicio = "09:00"
-    hora_fin    = "18:00"
-    activo = True
-    if horarios_semana_str:
-        try:
-            horarios = _json.loads(horarios_semana_str)
-            dia_conf = horarios.get(dia_semana, {})
-            if not dia_conf.get("activo", True):
-                return jsonify({"disponibles": [], "ocupados": []})
-            hora_inicio = dia_conf.get("inicio", "09:00")
-            hora_fin    = dia_conf.get("fin",    "18:00")
-        except Exception:
-            pass
+
+    # Si no hay configuración guardada, no mostrar horarios
+    if not horarios_semana_str:
+        return jsonify({"disponibles": [], "ocupados": []})
+
+    try:
+        horarios = _json.loads(horarios_semana_str)
+        dia_conf = horarios.get(dia_semana, {})
+        if not dia_conf.get("activo", False):
+            return jsonify({"disponibles": [], "ocupados": []})
+        hora_inicio = dia_conf.get("inicio", "09:00")
+        hora_fin    = dia_conf.get("fin",    "18:00")
+    except Exception:
+        return jsonify({"disponibles": [], "ocupados": []})
 
     inicio = datetime.strptime(hora_inicio, "%H:%M")
     fin    = datetime.strptime(hora_fin,    "%H:%M")
