@@ -234,6 +234,12 @@ def buscar_pacientes():
 CLAVES = ["tg_bot_token", "tg_chat_id", "agenda_hora_inicio", "agenda_hora_fin",
           "prof_nombre", "agenda_duracion_default"]
 
+
+@app.route("/publico/configuracion", methods=["GET"])
+def get_config_publico():
+    conf = db.session.get(Configuracion, "prof_nombre")
+    return jsonify({"prof_nombre": conf.valor if conf else ""})
+
 @app.route("/configuracion", methods=["GET"])
 @auth_required
 def get_config():
