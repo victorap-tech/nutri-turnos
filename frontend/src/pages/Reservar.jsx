@@ -26,9 +26,8 @@ export default function Reservar() {
   }
 
   useEffect(() => {
-    fetch(`${API}/configuracion`, {
-      headers: { Authorization: `Bearer ` } // público — no auth
-    }).then(r => r.json()).then(data => setProfNombre(data.prof_nombre || "")).catch(() => {});
+    fetch(`${API}/publico/configuracion`)
+      .then(r => r.json()).then(data => setProfNombre(data.prof_nombre || "")).catch(() => {});
   }, []);
 
   useEffect(() => {
