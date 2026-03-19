@@ -12,7 +12,9 @@ import time
 import traceback
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}}, 
+     allow_headers=["Content-Type", "Authorization"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
 database_url = os.environ.get("DATABASE_URL", "")
 if database_url.startswith("postgres://"):
