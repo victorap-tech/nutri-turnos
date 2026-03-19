@@ -39,3 +39,10 @@ class Usuario(db.Model):
 
     def check_password(self, pwd):
         return check_password_hash(self.password_hash, pwd)
+
+class Disponibilidad(db.Model):
+    __tablename__ = "disponibilidad"
+    id    = db.Column(db.Integer, primary_key=True)
+    fecha = db.Column(db.Date, nullable=False)
+    hora  = db.Column(db.String(5), nullable=False)
+    __table_args__ = (db.UniqueConstraint('fecha', 'hora'),)
