@@ -26,8 +26,16 @@ export default function AdminNuevoTurno() {
 
   useEffect(() => {
     if (!form.fecha) return;
-    api.get(`/publico/disponibles?fecha=${form.fecha}&duracion=${form.duracion}`)
-      .then(d => setDisponibles(d.disponibles || [])).catch(() => {});
+    api.get(`/disponibilidad?desde=${form.fecha}&hasta=${form.fecha}`)
+      .then(registros => {
+        // Get ocupados
+        api.get(`/turnos?fecha=${form.fecha}`)
+          .then(turnos => {
+            const ocupados = new Set(turnos.filter(t => t.estado !== 'cancelado').map(t => t.hora));
+            const disponibles = registros.map(r => r.hora).filter(h => !ocupados.has(h)).sort();
+            setDisponibles(disponibles);
+          }).catch(() => {});
+      }).catch(() => {});
   }, [form.fecha, form.duracion]);
 
   const guardar = async () => {
