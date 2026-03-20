@@ -1,6 +1,42 @@
 import { useEffect, useState } from "react";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:5001";
+
+const FRASES = [
+  // Consejos
+  { tipo: "consejo", emoji: "🥦", texto: "Incorporar verduras de distintos colores en cada comida es una de las mejores inversiones para tu salud." },
+  { tipo: "consejo", emoji: "💧", texto: "Tomar agua regularmente mejora la digestión, la concentración y el estado de ánimo." },
+  { tipo: "consejo", emoji: "🫐", texto: "Los frutos del bosque son ricos en antioxidantes que protegen las células del envejecimiento prematuro." },
+  { tipo: "consejo", emoji: "🥑", texto: "Las grasas saludables del palta y el aceite de oliva son esenciales para absorber vitaminas liposolubles." },
+  { tipo: "consejo", emoji: "🍎", texto: "Una manzana al día aporta fibra soluble que alimenta la microbiota intestinal." },
+  { tipo: "consejo", emoji: "🌾", texto: "Los cereales integrales tienen más fibra y nutrientes que sus versiones refinadas." },
+  { tipo: "consejo", emoji: "🐟", texto: "El pescado azul como el salmón aporta omega-3, fundamental para el corazón y el cerebro." },
+  { tipo: "consejo", emoji: "🥚", texto: "El huevo es uno de los alimentos más completos: aporta proteínas de alta calidad y vitaminas esenciales." },
+  { tipo: "consejo", emoji: "🫘", texto: "Las legumbres como lentejas y garbanzos son fuente de proteína vegetal y fibra prebiótica." },
+  { tipo: "consejo", emoji: "🌿", texto: "Incorporar hierbas aromáticas como perejil y cilantro realza el sabor sin necesidad de agregar sal." },
+  { tipo: "consejo", emoji: "🍋", texto: "La vitamina C del limón mejora la absorción del hierro de las legumbres y vegetales." },
+  { tipo: "consejo", emoji: "🥕", texto: "El betacaroteno de la zanahoria se convierte en vitamina A, importante para la visión y la piel." },
+  { tipo: "consejo", emoji: "🫚", texto: "Cocinar con aceite de oliva extra virgen en crudo conserva mejor sus propiedades antioxidantes." },
+  { tipo: "consejo", emoji: "🍌", texto: "El potasio del banana ayuda a regular la presión arterial y el funcionamiento muscular." },
+  { tipo: "consejo", emoji: "🥗", texto: "Masticar despacio y sin distracciones mejora la digestión y ayuda a reconocer la saciedad." },
+  // Datos curiosos
+  { tipo: "dato", emoji: "🧠", texto: "¿Sabías? El intestino tiene más de 100 millones de neuronas — por eso lo llaman el 'segundo cerebro'." },
+  { tipo: "dato", emoji: "🍫", texto: "¿Sabías? El cacao puro es uno de los alimentos con mayor concentración de magnesio en la naturaleza." },
+  { tipo: "dato", emoji: "🌶️", texto: "¿Sabías? La capsaicina del ají activa los mismos receptores de calor que la temperatura alta, por eso 'quema'." },
+  { tipo: "dato", emoji: "🫙", texto: "¿Sabías? El yogur natural contiene bacterias vivas que pueden colonizar el intestino y mejorar la digestión." },
+  { tipo: "dato", emoji: "🥜", texto: "¿Sabías? Los frutos secos como almendras y nueces reducen el colesterol LDL cuando se consumen regularmente." },
+  { tipo: "dato", emoji: "🍯", texto: "¿Sabías? La miel pura nunca caduca — se encontraron jarras de 3000 años en pirámides egipcias todavía comestibles." },
+  { tipo: "dato", emoji: "🌽", texto: "¿Sabías? El maíz morado contiene antocianinas, pigmentos con potente efecto antiinflamatorio." },
+  { tipo: "dato", emoji: "🫀", texto: "¿Sabías? Una dieta rica en potasio puede reducir el riesgo de accidente cerebrovascular hasta un 21%." },
+  { tipo: "dato", emoji: "🥬", texto: "¿Sabías? La espinaca cocida tiene más hierro biodisponible que la cruda porque el calor desactiva el ácido oxálico." },
+  { tipo: "dato", emoji: "🍵", texto: "¿Sabías? El té verde contiene L-teanina, un aminoácido que mejora la concentración sin generar ansiedad." },
+  { tipo: "dato", emoji: "🫁", texto: "¿Sabías? El rábano picante contiene más vitamina C que la naranja, aunque se consume en cantidades pequeñas." },
+  { tipo: "dato", emoji: "🌊", texto: "¿Sabías? Las algas marinas como el nori son de los pocos alimentos vegetales con vitamina B12 biodisponible." },
+  { tipo: "dato", emoji: "🍇", texto: "¿Sabías? El resveratrol de la piel de la uva negra tiene propiedades cardioprotectoras estudiadas por la ciencia." },
+  { tipo: "dato", emoji: "🥩", texto: "¿Sabías? El hígado vacuno tiene 10 veces más hierro que la carne roja muscular." },
+  { tipo: "dato", emoji: "🌰", texto: "¿Sabías? La castaña es el único fruto seco bajo en grasa y con alto contenido de almidón, similar a los cereales." },
+];
+
 const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const DIAS  = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
 
@@ -14,6 +50,8 @@ export default function Reservar() {
   const [hora, setHora]       = useState("");
   const [duracion, setDuracion] = useState(45);
   const [disponibles, setDisponibles] = useState([]);
+  const [feriado, setFeriado] = useState(null);
+  const [frase, setFrase] = useState(null);
   const [form, setForm]       = useState({ nombre_libre: "", telefono: "", email: "", notas: "" });
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState("");
@@ -43,8 +81,16 @@ export default function Reservar() {
 
   useEffect(() => {
     if (!fecha) return;
+    setFeriado(null);
     fetch(`${API}/publico/disponibles?fecha=${toISO(fecha)}&duracion=${duracion}`)
-      .then(r => r.json()).then(d => setDisponibles(d.disponibles || [])).catch(() => {});
+      .then(r => r.json()).then(d => {
+        if (d.feriado) {
+          setFeriado(d.descripcion || "Feriado");
+          setDisponibles([]);
+        } else {
+          setDisponibles(d.disponibles || []);
+        }
+      }).catch(() => {});
   }, [fecha, duracion]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -204,7 +250,7 @@ export default function Reservar() {
               {diasHabiles.map((dia, i) => {
                 const sel = fecha && toISO(dia) === toISO(fecha);
                 return (
-                  <button key={i} onClick={() => { setFecha(dia); setHora(""); }} style={{
+                  <button key={i} onClick={() => { setFecha(dia); setHora(""); setFrase(FRASES[Math.floor(Math.random() * FRASES.length)]); }} style={{
                     padding: "10px 8px", borderRadius: "var(--radius)", border: `1.5px solid ${sel ? "var(--accent)" : "var(--border)"}`,
                     background: sel ? "var(--accent)" : "var(--surface)", color: sel ? "white" : "var(--text)",
                     cursor: "pointer", textAlign: "center", fontFamily: "var(--font-body)",
@@ -218,8 +264,27 @@ export default function Reservar() {
             </div>
             {fecha && (
               <>
+                {frase && (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", background: frase.tipo === "dato" ? "#f0f4ff" : "var(--accent-light, #e8f5ee)", borderRadius: "var(--radius)", marginBottom: 20, border: `1px solid ${frase.tipo === "dato" ? "#c8d6f5" : "var(--border-light)"}` }}>
+                    <span style={{ fontSize: "1.6rem", lineHeight: 1 }}>{frase.emoji}</span>
+                    <div>
+                      <div style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: frase.tipo === "dato" ? "#4a6fa5" : "var(--accent)", marginBottom: 3 }}>
+                        {frase.tipo === "dato" ? "Dato curioso" : "Consejo saludable"}
+                      </div>
+                      <p style={{ fontSize: "0.82rem", color: "var(--text)", margin: 0, lineHeight: 1.5 }}>{frase.texto}</p>
+                    </div>
+                  </div>
+                )}
                 <div className="card-title">Horarios disponibles</div>
-                {disponibles.length === 0
+                {feriado ? (
+                  <div style={{ background: "#fff4e0", border: "1px solid #f5dfa0", borderRadius: "var(--radius)", padding: "14px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: "1.4rem" }}>🎉</span>
+                    <div>
+                      <div style={{ fontWeight: 600, color: "#c47c00", fontSize: "0.9rem" }}>{feriado}</div>
+                      <div style={{ fontSize: "0.82rem", color: "#7d5a00", marginTop: 2 }}>Nos adherimos al feriado. Por favor seleccioná otro día.</div>
+                    </div>
+                  </div>
+                ) : disponibles.length === 0
                   ? <p style={{ color: "var(--text-muted)", fontSize: "0.875rem", marginBottom: 16 }}>No hay horarios disponibles para este día.</p>
                   : <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
                       {disponibles.map(h => (
