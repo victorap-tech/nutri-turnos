@@ -10,6 +10,12 @@ import jwt
 import threading
 import time
 import traceback
+from zoneinfo import ZoneInfo
+
+ARGENTINA = ZoneInfo("America/Argentina/Buenos_Aires")
+
+def hoy_argentina():
+    return datetime.now(ARGENTINA).date()
 
 app = Flask(__name__)
 CORS(app)
@@ -324,7 +330,7 @@ def mis_turnos():
         return jsonify({"error": "nombre requerido"}), 400
     turnos = Turno.query.filter(
         Turno.estado.in_(["pendiente", "confirmado"]),
-        Turno.fecha >= date.today()
+        Turno.fecha >= hoy_argentina()
     ).order_by(Turno.fecha, Turno.hora).all()
     resultado = [
         _dict(t) for t in turnos
