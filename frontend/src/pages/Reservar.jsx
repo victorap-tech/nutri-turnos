@@ -26,7 +26,7 @@ export default function Reservar() {
   const [cancelMsg, setCancelMsg]           = useState("");
 
   const diasHabiles = [];
-  let d = addDays(new Date(), 1);
+  let d = new Date(); // empieza desde hoy
   while (diasHabiles.length < 14) {
     if (d.getDay() >= 1 && d.getDay() <= 5) diasHabiles.push(new Date(d));
     d = addDays(d, 1);
