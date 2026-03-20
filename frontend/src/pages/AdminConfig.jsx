@@ -96,6 +96,29 @@ export default function AdminConfig() {
         Guardar configuración
       </button>
 
+      {/* Reset datos */}
+      <div className="card" style={{ maxWidth: 420, marginBottom: 20, border: "1px solid #fcd0cc" }}>
+        <div className="card-title" style={{ color: "var(--danger)" }}>Zona de peligro</div>
+        <p style={{ fontSize: "0.875rem", color: "var(--text-muted)", marginBottom: 16 }}>
+          Borra todos los turnos y disponibilidades. La configuración profesional se mantiene.
+        </p>
+        <button
+          style={{ background: "#fdecea", color: "#b5341a", border: "1px solid #f5c6bf", borderRadius: "var(--radius)", padding: "8px 16px", cursor: "pointer", fontFamily: "var(--font-body)", fontSize: "0.875rem" }}
+          onClick={async () => {
+            const c1 = window.confirm("¿Borrar todos los turnos y disponibilidades?");
+            if (!c1) return;
+            const c2 = window.confirm("Esta acción no se puede deshacer. ¿Confirmar?");
+            if (!c2) return;
+            try {
+              await api.post("/admin/reset", {});
+              flash("success", "Datos reseteados correctamente");
+            } catch { flash("danger", "Error al resetear"); }
+          }}
+        >
+          🗑️ Resetear todos los datos
+        </button>
+      </div>
+
       <div className="card" style={{ maxWidth: 420 }}>
         <div className="card-title">Cambiar contraseña</div>
         <div className="form-group"><label>Contraseña actual</label><input type="password" value={pwd.actual} onChange={e => setPwd(p => ({ ...p, actual: e.target.value }))} /></div>
