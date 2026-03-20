@@ -154,16 +154,22 @@ export default function AdminDisponibilidad() {
                   <div style={{ fontSize: "1.1rem", fontFamily: "var(--font-display, Georgia, serif)", fontWeight: 300, color: "var(--text)" }}>
                     {dia.getDate()}
                   </div>
-                  <div style={{ display: "flex", gap: 4, justifyContent: "center", marginTop: 4 }}>
-                    <button onClick={() => habilitarDia(dia)} title="Habilitar todo el día"
-                      style={{ fontSize: "0.6rem", padding: "2px 6px", borderRadius: 4, border: "1px solid var(--accent)", background: "var(--accent-light)", color: "var(--accent)", cursor: "pointer" }}>
-                      Todo
-                    </button>
-                    <button onClick={() => limpiarDia(dia)} title="Limpiar día"
-                      style={{ fontSize: "0.6rem", padding: "2px 6px", borderRadius: 4, border: "1px solid var(--border)", background: "var(--surface-3)", color: "var(--text-muted)", cursor: "pointer" }}>
-                      ✕
-                    </button>
-                  </div>
+                  {(() => {
+                    const hoy = new Date(); hoy.setHours(0,0,0,0);
+                    const esPasado = dia < hoy;
+                    return !esPasado ? (
+                      <div style={{ display: "flex", gap: 4, justifyContent: "center", marginTop: 4 }}>
+                        <button onClick={() => habilitarDia(dia)} title="Habilitar todo el día"
+                          style={{ fontSize: "0.6rem", padding: "2px 6px", borderRadius: 4, border: "1px solid var(--accent)", background: "var(--accent-light)", color: "var(--accent)", cursor: "pointer" }}>
+                          Todo
+                        </button>
+                        <button onClick={() => limpiarDia(dia)} title="Limpiar día"
+                          style={{ fontSize: "0.6rem", padding: "2px 6px", borderRadius: 4, border: "1px solid var(--border)", background: "var(--surface-3)", color: "var(--text-muted)", cursor: "pointer" }}>
+                          ✕
+                        </button>
+                      </div>
+                    ) : <div style={{ fontSize: "0.6rem", color: "var(--text-muted)", marginTop: 4 }}>pasado</div>;
+                  })()}
                 </th>
               ))}
             </tr>
@@ -181,24 +187,30 @@ export default function AdminDisponibilidad() {
                   const habilitado = habilitadas.has(key);
                   return (
                     <td key={i} style={{ padding: "2px 4px", borderBottom: "1px solid var(--border-light)" }}>
-                      <div
-                        onClick={() => toggle(isoFecha, hora)}
-                        style={{
-                          height: 32,
-                          borderRadius: 6,
-                          cursor: tieneTurno ? "not-allowed" : "pointer",
-                          background: tieneTurno ? "#ff6b6b" : habilitado ? "var(--accent)" : "var(--surface-2)",
-                          border: `1px solid ${tieneTurno ? "#ff6b6b" : habilitado ? "var(--accent)" : "var(--border-light)"}`,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          transition: "all 0.1s",
-                          opacity: tieneTurno ? 0.8 : 1,
-                        }}
-                        title={tieneTurno ? `Turno: ${turnos[key].nombre}` : habilitado ? "Clic para bloquear" : "Clic para habilitar"}
-                      >
-                        {tieneTurno && <span style={{ fontSize: "0.65rem", color: "white", fontWeight: 600, padding: "0 4px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 80 }}>
-                          {turnos[key].nombre?.split(",")[0] || "Turno"}
-                        </span>}
-                      </div>
+                      {(() => {
+                        const hoy = new Date(); hoy.setHours(0,0,0,0);
+                        const esPasado = dia < hoy;
+                        return (
+                        <div
+                          onClick={() => !esPasado && toggle(isoFecha, hora)}
+                          style={{
+                            height: 32,
+                            borderRadius: 6,
+                            cursor: esPasado ? "default" : tieneTurno ? "not-allowed" : "pointer",
+                            background: tieneTurno ? "#ff6b6b" : esPasado ? "var(--surface-3)" : habilitado ? "var(--accent)" : "var(--surface-2)",
+                            border: `1px solid ${tieneTurno ? "#ff6b6b" : esPasado ? "var(--border-light)" : habilitado ? "var(--accent)" : "var(--border-light)"}`,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            transition: "all 0.1s",
+                            opacity: esPasado ? 0.4 : tieneTurno ? 0.8 : 1,
+                          }}
+                          title={esPasado ? "Día pasado" : tieneTurno ? `Turno: ${turnos[key].nombre}` : habilitado ? "Clic para bloquear" : "Clic para habilitar"}
+                        >
+                          {tieneTurno && <span style={{ fontSize: "0.65rem", color: "white", fontWeight: 600, padding: "0 4px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 80 }}>
+                            {turnos[key].nombre?.split(",")[0] || "Turno"}
+                          </span>}
+                        </div>
+                        );
+                      })()}
                     </td>
                   );
                 })}
