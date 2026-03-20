@@ -11,6 +11,12 @@ import threading
 import time
 import traceback
 from zoneinfo import ZoneInfo
+import unicodedata
+
+def normalizar(texto):
+    if not texto: return ""
+    texto = texto.strip().lower()
+    return "".join(c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn")
 
 ARGENTINA = ZoneInfo("America/Argentina/Buenos_Aires")
 
@@ -325,7 +331,7 @@ def _dict(t):
 
 @app.route("/publico/mis-turnos", methods=["GET"])
 def mis_turnos():
-    nombre = (request.args.get("nombre") or "").strip().lower()
+    nombre = (request.args.get("nombre") or "").strip()
     if not nombre:
         return jsonify({"error": "nombre requerido"}), 400
     turnos = Turno.query.filter(
@@ -334,15 +340,15 @@ def mis_turnos():
     ).order_by(Turno.fecha, Turno.hora).all()
     resultado = [
         _dict(t) for t in turnos
-        if (t.nombre_libre or "").lower().strip() == nombre
+        if normalizar(t.nombre_libre) == normalizar(nombre)
     ]
     return jsonify(resultado)
 
 @app.route("/publico/cancelar/<int:turno_id>", methods=["PUT"])
 def cancelar_turno_publico(turno_id):
-    nombre = (request.json or {}).get("nombre", "").strip().lower()
+    nombre = (request.json or {}).get("nombre", "").strip()
     t = get_or_404(Turno, turno_id)
-    if (t.nombre_libre or "").lower().strip() != nombre:
+    if normalizar(t.nombre_libre) != normalizar(nombre):
         return jsonify({"error": "no_autorizado"}), 403
     t.estado = "cancelado"
     db.session.commit()
