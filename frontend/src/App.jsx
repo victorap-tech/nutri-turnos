@@ -5,6 +5,7 @@ import AdminAgenda from "./pages/AdminAgenda";
 import AdminNuevoTurno from "./pages/AdminNuevoTurno";
 import AdminConfig from "./pages/AdminConfig";
 import AdminDisponibilidad from "./pages/AdminDisponibilidad";
+import AdminTurnoDetalle from "./pages/AdminTurnoDetalle";
 import Reservar from "./pages/Reservar";
 
 function PrivateRoute({ children }) {
@@ -23,6 +24,7 @@ export default function App() {
             <Routes>
               <Route index element={<AdminAgenda />} />
               <Route path="nuevo" element={<AdminNuevoTurno />} />
+              <Route path="turno/:id" element={<AdminTurnoDetalle />} />
               <Route path="disponibilidad" element={<AdminDisponibilidad />} />
               <Route path="config" element={<AdminConfig />} />
             </Routes>
