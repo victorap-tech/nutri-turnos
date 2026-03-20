@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import date, datetime, timedelta
 from database import db
-from models import Turno, Paciente, Configuracion, Usuario
+from models import Turno, Paciente, Configuracion, Usuario, Disponibilidad
 from telegram_helper import enviar_telegram
 from notifier import check_recordatorios, get_conf, nombre_turno
 import os
@@ -12,9 +12,7 @@ import time
 import traceback
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}}, 
-     allow_headers=["Content-Type", "Authorization"],
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+CORS(app)
 
 database_url = os.environ.get("DATABASE_URL", "")
 if database_url.startswith("postgres://"):
@@ -189,42 +187,27 @@ def eliminar_turno(tid):
 @app.route("/publico/disponibles", methods=["GET"])
 def disponibles_publico():
     fecha_str = request.args.get("fecha")
-    duracion  = int(request.args.get("duracion", 45))
     if not fecha_str:
         return jsonify({"error": "fecha requerida"}), 400
 
-    # Usar horario por día de semana
-    import json as _json
-    horarios_semana_str = get_conf("horarios_semana")
-    dia_semana = str(date.fromisoformat(fecha_str).isoweekday())  # 1=lun, 7=dom
+    fecha_obj = date.fromisoformat(fecha_str)
 
-    # Si no hay configuración guardada, no mostrar horarios
-    if not horarios_semana_str:
+    # Franjas habilitadas por la profesional para esta fecha
+    habilitadas = {
+        d.hora for d in Disponibilidad.query.filter_by(fecha=fecha_obj).all()
+    }
+
+    if not habilitadas:
         return jsonify({"disponibles": [], "ocupados": []})
 
-    try:
-        horarios = _json.loads(horarios_semana_str)
-        dia_conf = horarios.get(dia_semana, {})
-        if not dia_conf.get("activo", False):
-            return jsonify({"disponibles": [], "ocupados": []})
-        hora_inicio = dia_conf.get("inicio", "09:00")
-        hora_fin    = dia_conf.get("fin",    "18:00")
-    except Exception:
-        return jsonify({"disponibles": [], "ocupados": []})
-
-    inicio = datetime.strptime(hora_inicio, "%H:%M")
-    fin    = datetime.strptime(hora_fin,    "%H:%M")
-    slots  = []
-    cur = inicio
-    while cur + timedelta(minutes=duracion) <= fin:
-        slots.append(cur.strftime("%H:%M"))
-        cur += timedelta(minutes=duracion)
-
+    # Quitar los que ya tienen turno
     ocupados = {
-        t.hora for t in Turno.query.filter_by(fecha=date.fromisoformat(fecha_str))
+        t.hora for t in Turno.query.filter_by(fecha=fecha_obj)
         .filter(Turno.estado != "cancelado").all()
     }
-    return jsonify({"disponibles": [s for s in slots if s not in ocupados], "ocupados": list(ocupados)})
+
+    disponibles = sorted([h for h in habilitadas if h not in ocupados])
+    return jsonify({"disponibles": disponibles, "ocupados": list(ocupados)})
 
 @app.route("/publico/reservar", methods=["POST"])
 def reservar_publico():
@@ -367,6 +350,62 @@ def cancelar_turno_publico(turno_id):
         )
         enviar_telegram(bot_token, chat_id, msg)
     return jsonify({"status": "cancelado"})
+
+
+# ---------------- DISPONIBILIDAD ----------------
+
+@app.route("/disponibilidad", methods=["GET"])
+@auth_required
+def get_disponibilidad():
+    desde = request.args.get("desde")
+    hasta = request.args.get("hasta")
+    q = Disponibilidad.query
+    if desde: q = q.filter(Disponibilidad.fecha >= date.fromisoformat(desde))
+    if hasta: q = q.filter(Disponibilidad.fecha <= date.fromisoformat(hasta))
+    registros = q.all()
+    return jsonify([{"fecha": r.fecha.isoformat(), "hora": r.hora} for r in registros])
+
+@app.route("/disponibilidad", methods=["POST"])
+@auth_required
+def toggle_disponibilidad():
+    """Agrega o elimina una franja horaria"""
+    data = request.json or {}
+    fecha_obj = date.fromisoformat(data["fecha"])
+    hora = data["hora"]
+
+    existente = Disponibilidad.query.filter_by(fecha=fecha_obj, hora=hora).first()
+    if existente:
+        db.session.delete(existente)
+        db.session.commit()
+        return jsonify({"accion": "eliminado"})
+    else:
+        db.session.add(Disponibilidad(fecha=fecha_obj, hora=hora))
+        db.session.commit()
+        return jsonify({"accion": "agregado"})
+
+@app.route("/disponibilidad/semana", methods=["POST"])
+@auth_required
+def set_disponibilidad_semana():
+    """Reemplaza todas las franjas de una semana"""
+    data = request.json or {}
+    desde = date.fromisoformat(data["desde"])
+    hasta = date.fromisoformat(data["hasta"])
+    franjas = data.get("franjas", [])  # [{"fecha": "2026-03-20", "hora": "09:00"}, ...]
+
+    # Borrar semana actual
+    Disponibilidad.query.filter(
+        Disponibilidad.fecha >= desde,
+        Disponibilidad.fecha <= hasta
+    ).delete()
+
+    # Agregar nuevas
+    for f in franjas:
+        db.session.add(Disponibilidad(
+            fecha=date.fromisoformat(f["fecha"]),
+            hora=f["hora"]
+        ))
+    db.session.commit()
+    return jsonify({"status": "ok", "franjas": len(franjas)})
 
 
 if __name__ == "__main__":
