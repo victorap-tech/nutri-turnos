@@ -43,7 +43,7 @@ export default function AdminDisponibilidad() {
       const cfg = await api.get("/configuracion");
       setConfig({
         inicio: cfg.agenda_hora_inicio || "08:00",
-        fin: cfg.agenda_hora_fin || "19:00",
+        fin: cfg.agenda_hora_fin || "20:00",
         duracion: Number(cfg.agenda_duracion_default || 45),
       });
 
