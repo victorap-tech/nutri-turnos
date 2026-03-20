@@ -4,7 +4,7 @@ const API = import.meta.env.VITE_API_URL || "http://localhost:5001";
 const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const DIAS  = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
 
-function toISO(d) { return d.toISOString().split("T")[0]; }
+function toISO(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
 function addDays(d,n) { const dt = new Date(d); dt.setDate(dt.getDate()+n); return dt; }
 
 export default function Reservar() {
