@@ -420,6 +420,23 @@ def set_disponibilidad_semana():
     return jsonify({"status": "ok", "franjas": len(franjas)})
 
 
+@app.route("/admin/reset", methods=["POST"])
+@auth_required
+def reset_datos():
+    """Borra todos los turnos y disponibilidad, deja config intacta"""
+    try:
+        Disponibilidad.query.delete()
+        Turno.query.delete()
+        db.session.execute(db.text("ALTER SEQUENCE turno_id_seq RESTART WITH 1"))
+        db.session.execute(db.text("ALTER SEQUENCE disponibilidad_id_seq RESTART WITH 1"))
+        db.session.commit()
+        return jsonify({"status": "reset ok"})
+    except Exception:
+        db.session.rollback()
+        traceback.print_exc()
+        return jsonify({"error": "no_se_pudo_resetear"}), 500
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port)
