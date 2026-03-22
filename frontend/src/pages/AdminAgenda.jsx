@@ -25,10 +25,21 @@ function estadoBadge(estado) {
 
 export default function AdminAgenda() {
   const navigate = useNavigate();
-  const [semana, setSemana]   = useState(startOfWeek(new Date()));
+  const [semana, setSemana]   = useState(() => {
+    const hoy = new Date();
+    const d = hoy.getDay(); // 0=dom, 6=sab
+    if (d === 0 || d === 6) return startOfWeek(addDays(hoy, 7));
+    return startOfWeek(hoy);
+  });
   const [turnos, setTurnos]   = useState([]);
   const [vista, setVista]     = useState("semana");
-  const [dia, setDia]         = useState(new Date());
+  const [dia, setDia]         = useState(() => {
+    const hoy = new Date();
+    const d = hoy.getDay();
+    if (d === 0) return addDays(hoy, 1); // domingo → lunes
+    if (d === 6) return addDays(hoy, 2); // sábado → lunes
+    return hoy;
+  });
   const hoy = toISO(new Date());
 
   const cargar = async (desde, hasta) => {
