@@ -25,7 +25,13 @@ function generarSlots(inicio, fin, duracion) {
 }
 
 export default function AdminDisponibilidad() {
-  const [semana, setSemana]         = useState(startOfWeek(new Date()));
+  const [semana, setSemana]         = useState(() => {
+    const hoy = new Date();
+    const dia = hoy.getDay(); // 0=dom, 6=sab
+    // Si es sábado o domingo, mostrar la semana siguiente
+    if (dia === 0 || dia === 6) return startOfWeek(addDays(hoy, 7));
+    return startOfWeek(hoy);
+  });
   const [habilitadas, setHabilitadas] = useState(new Set()); // "fecha|hora"
   const [turnos, setTurnos]         = useState({}); // "fecha|hora" -> turno
   const [saving, setSaving]         = useState(false);
