@@ -150,6 +150,11 @@ export default function Reservar() {
         <button className="btn-secondary" style={{ padding: "14px 20px", fontSize: "1rem" }} onClick={() => setModo("cancelar")}>
           ❌ Cancelar mi turno
         </button>
+        <a href="https://nutri-app-production-dcae.up.railway.app/mi-plan" target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+          <button className="btn-ghost" style={{ padding: "14px 20px", fontSize: "1rem", width: "100%" }}>
+            🥗 Mi plan alimentario
+          </button>
+        </a>
       </div>
     </div>
   );
